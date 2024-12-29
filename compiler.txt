@@ -1,0 +1,15 @@
+javac -d bin -classpath "lib/*;src" -Xlint:unchecked -proc:none src\tech\iresponse\*.java
+jar cfm myapp.jar META-INF/MANIFEST.MF -C bin .
+
+
+java -Dfile.encoding=UTF8 -jar myapp.jar eyJ1c2VyLWlkIjoxLCJlbmRwb2ludCI6IlNlcnZlcnMiLCJhY3Rpb24iOiJjaGVja010YVNlcnZlciIsInBhcmFtZXRlcnMiOnsic2VydmVyLWlkIjoxMn19
+
+java -version
+
+
+javac -version
+
+
+C:\Program Files\Java\jdk1.7.0_80
+
+C:\Program Files\Java\jre7

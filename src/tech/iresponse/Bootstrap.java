@@ -25,7 +25,7 @@ public class Bootstrap {
             app.getInstanceApplication();
             MapError.ini(app.controller());
         } catch (Throwable t) {
-            String str = (t instanceof DatabaseException) ? t.getMessage() : "Internal server error !";
+            String str = (t instanceof DatabaseException) ? t.getMessage() : "Internal server error ! - -"+ t.getMessage();
             MapError.ini(new Response(str, 500));
             Loggers.error(t);
         } finally {

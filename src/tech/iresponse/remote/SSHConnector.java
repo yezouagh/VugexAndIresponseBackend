@@ -181,9 +181,9 @@ public class SSHConnector {
                     str = Convertion.boucleDecrypt(str, TypesParser.safeMatcher("kdsd1kllkjhl"));*/
 
                     str = Crypto.BoucleBase64Decode(str, TypesParser.safeMatcher("kdhgf4kjh"));
-                    str = Convertion.boucleDecrypt(str, TypesParser.safeMatcher("sjg8skd"));
+                    str = Convertion.decryptBoucle(str, TypesParser.safeMatcher("sjg8skd"));
                     str = Crypto.BoucleBase64Decode(str, TypesParser.safeMatcher("llskdjd6"));
-                    str = Convertion.boucleDecrypt(str, TypesParser.safeMatcher("k1dsdkllkjh0"));
+                    str = Convertion.decryptBoucle(str, TypesParser.safeMatcher("k1dsdkllkjh0"));
 
                     return str.trim().toLowerCase().equalsIgnoreCase(str1.trim().toLowerCase());
                 }

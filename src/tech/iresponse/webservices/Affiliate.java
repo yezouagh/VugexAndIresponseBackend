@@ -65,23 +65,26 @@ public class Affiliate implements Controller {
     public static volatile int nbrEmailFound = 1;
     public static volatile int maxSize = 50;
 
-    public Response getOffers() throws Exception  {
+    public Response getOffers() throws Exception {
         Application app = Application.checkAndgetInstance();
-        if (app == null){
+        if (app == null) {
             throw new DatabaseException("Application not found !");
         }
 
-        List offersIdsList = (app.getParameters().has("offers-ids") && app.getParameters().get("offers-ids") instanceof JSONArray) ? JsonUtils.jsonArrayToStringArrayList(app.getParameters().getJSONArray("offers-ids")) : new ArrayList();
+        List offersIdsList = (app.getParameters().has("offers-ids")
+                && app.getParameters().get("offers-ids") instanceof JSONArray)
+                        ? JsonUtils.jsonArrayToStringArrayList(app.getParameters().getJSONArray("offers-ids"))
+                        : new ArrayList();
 
         AffiliateNetwork affiliate = new AffiliateNetwork(app.getParameters().getInt("affiliate-network-id"));
-        if (affiliate.getEmpty()){
+        if (affiliate.getEmpty()) {
             throw new DatabaseException("No affiliate network passed to this process !");
         }
 
         int maxCreatives = app.getParameters().getInt("max-creatives");
 
         AffiliateApi affApi = AffiliateApi.controller(affiliate.apiType);
-        if (affApi == null){
+        if (affApi == null) {
             throw new DatabaseException("Affiliate network api not found !");
         }
 
@@ -89,17 +92,17 @@ public class Affiliate implements Controller {
         affApi.setMaxCreatives(maxCreatives);
         affApi.getOffers(offersIdsList);
 
-        if (CAMPAIGNS_OFFERS.isEmpty()){
+        if (CAMPAIGNS_OFFERS.isEmpty()) {
             throw new DatabaseException("No offers found !");
         }
 
         int j = (CAMPAIGNS_OFFERS.size() < maxSize) ? CAMPAIGNS_OFFERS.size() : maxSize;
         ExecutorService execService = Executors.newFixedThreadPool(j);
 
-        CAMPAIGNS_OFFERS.forEach(dataJsn -> execService.submit((Runnable)new OffersInserter(dataJsn, affiliate)));
+        CAMPAIGNS_OFFERS.forEach(dataJsn -> execService.submit((Runnable) new OffersInserter(dataJsn, affiliate)));
         execService.shutdown();
 
-        if (!execService.awaitTermination(1L, TimeUnit.DAYS)){
+        if (!execService.awaitTermination(1L, TimeUnit.DAYS)) {
             execService.shutdownNow();
         }
         return new Response("Offers imported successfully !", 200);
@@ -109,42 +112,44 @@ public class Affiliate implements Controller {
         Suppression supp = null;
         try {
             Application app = Application.checkAndgetInstance();
-            if (app == null){
+            if (app == null) {
                 throw new DatabaseException("Application not found !");
             }
 
             supp = new Suppression(Integer.valueOf(app.getParameters().getInt("process-id")));
-            if (supp.getEmpty()){
+            if (supp.getEmpty()) {
                 throw new DatabaseException("No process found !");
             }
 
-            supp.processId = Application.checkAndgetInstance().getProcesssId() + "_" + Application.checkAndgetInstance().getSystemDatabaseProcessId() + "_" + Application.checkAndgetInstance().getClientsDatabaseProcessId();
+            supp.processId = Application.checkAndgetInstance().getProcesssId() + "_"
+                    + Application.checkAndgetInstance().getSystemDatabaseProcessId() + "_"
+                    + Application.checkAndgetInstance().getClientsDatabaseProcessId();
             supp.startTime = new Timestamp(Calendar.getInstance(TimeZone.getTimeZone("GMT")).getTimeInMillis());
             supp.progress = "0%";
             supp.emailsFound = 0;
             supp.update();
 
-            List<DataList> dataList = (List)DataList.all(DataList.class, "id IN (" + supp.listsIds + ")", null);
-            if (dataList == null || dataList.isEmpty()){
+            List<DataList> dataList = (List) DataList.all(DataList.class, "id IN (" + supp.listsIds + ")", null);
+            if (dataList == null || dataList.isEmpty()) {
                 throw new DatabaseException("Lists not found !");
             }
             String trachPatch = System.getProperty("trash.path") + File.separator + Strings.rndomSalt(20, false);
             Application.add(new File(trachPatch));
 
             Offer offer = new Offer(Integer.valueOf(supp.offerId));
-            if (offer.getEmpty()){
+            if (offer.getEmpty()) {
                 throw new DatabaseException("No offer found for this proccess !");
             }
 
             AffiliateNetwork affNetwork = new AffiliateNetwork(Integer.valueOf(offer.affiliateNetworkId));
-            if (affNetwork.getEmpty()){
+            if (affNetwork.getEmpty()) {
                 throw new DatabaseException("No affiliate network found for this proccess !");
             }
 
             String suppLink = offer.defaultSuppressionLink;
             if (Strings.isEmpty(suppLink)) {
                 AffiliateApi affApi = AffiliateApi.controller(affNetwork.apiType);
-                if (affApi == null){
+                if (affApi == null) {
                     throw new DatabaseException("Affiliate network api not found !");
                 }
                 affApi.setAffiliateNetwork(affNetwork);
@@ -152,51 +157,56 @@ public class Affiliate implements Controller {
             }
 
             suppLink = suppLink.replaceAll(Pattern.quote(","), "").replaceAll(Pattern.quote(";"), "");
-            if (Strings.isEmpty(suppLink)){
+            if (Strings.isEmpty(suppLink)) {
                 throw new DatabaseException("No suppression link found !");
             }
 
             if (suppLink.contains("affiliateaccesskey")) {
                 String newLnk = Agents.get(new URL(suppLink)).toString();
-                if (newLnk != null && newLnk.contains("optizmo")){
+                if (newLnk != null && newLnk.contains("optizmo")) {
                     suppLink = newLnk;
                 }
             }
 
             if (suppLink.contains("optizmo") && !suppLink.contains("s=Download") && !suppLink.contains("getfile")) {
 
-                String lnkSupp = Agents.get(suppLink.trim(), 60).split(Pattern.quote("?"))[1].replaceAll("mak=", "").trim();
+                String lnkSupp = Agents.get(suppLink.trim(), 60).split(Pattern.quote("?"))[1].replaceAll("mak=", "")
+                        .trim();
                 lnkSupp = lnkSupp.contains("&") ? lnkSupp.split(Pattern.quote("&"))[0] : lnkSupp;
                 String token = String.valueOf(Application.getSettingsParam("optizmo_token"));
 
-                String responseLnk = Agents.get("https://mailer-api.optizmo.net/accesskey/download/" + lnkSupp + "?token=" + token, null, 600);
-                if (responseLnk == null || "".equals(responseLnk)){
+                String responseLnk = Agents.get(
+                        "https://mailer-api.optizmo.net/accesskey/download/" + lnkSupp + "?token=" + token, null, 600);
+                if (responseLnk == null || "".equals(responseLnk)) {
                     throw new DatabaseException("No response retreived !");
                 }
 
                 JSONObject jSONObject = new JSONObject(responseLnk);
-                if (jSONObject.has("result") && "success".equalsIgnoreCase(String.valueOf(jSONObject.get("result")))){
+                if (jSONObject.has("result") && "success".equalsIgnoreCase(String.valueOf(jSONObject.get("result")))) {
                     suppLink = jSONObject.getString("download_link");
                 }
             }
 
-            if (Strings.isEmpty(suppLink)){
+            if (Strings.isEmpty(suppLink)) {
                 throw new DatabaseException("No suppression link found !");
             }
 
             if (suppLink.contains("google.com/spreadsheets")) {
-                String[] arrayOfString = StringUtils.replace(StringUtils.replace(suppLink, "?", "/"), "https://docs.google.com/spreadsheets/d/", "").split(Pattern.quote("/"));
-                if (arrayOfString.length > 0){
-                    suppLink = "https://docs.google.com/spreadsheets/d/" + arrayOfString[0] + "/export?gid=0&format=csv&id=" + arrayOfString[0];
+                String[] arrayOfString = StringUtils
+                        .replace(StringUtils.replace(suppLink, "?", "/"), "https://docs.google.com/spreadsheets/d/", "")
+                        .split(Pattern.quote("/"));
+                if (arrayOfString.length > 0) {
+                    suppLink = "https://docs.google.com/spreadsheets/d/" + arrayOfString[0]
+                            + "/export?gid=0&format=csv&id=" + arrayOfString[0];
                 }
             }
 
-            if (suppLink.contains("dropbox.com")){
+            if (suppLink.contains("dropbox.com")) {
                 suppLink = StringUtils.replace(suppLink, "dl=0", "dl=1");
             }
 
             File firstRndFile = new File(trachPatch + File.separator + Strings.rndomSalt(20, false));
-            if (!firstRndFile.exists()){
+            if (!firstRndFile.exists()) {
                 firstRndFile.mkdirs();
             }
 
@@ -209,31 +219,34 @@ public class Affiliate implements Controller {
                 LinkedHashMap<String, String> map = new LinkedHashMap<String, String>();
                 map.put("Accept", "application/json");
                 map.put("Authorization", "Bearer  " + (affNetwork.apiKey));
-                rsp = Agents.get(suppLink.trim(), null, 60, map, (File)pathSuppFile);
-            }else{
-                rsp = Agents.get(suppLink.trim(), null, 60, (File)pathSuppFile);
+                rsp = Agents.get(suppLink.trim(), null, 60, map, (File) pathSuppFile);
+            } else {
+                rsp = Agents.get(suppLink.trim(), null, 60, (File) pathSuppFile);
             }
 
-            //String rsp = Agents.get(suppLink.trim(), null, 60, (File)pathSuppFile);
-            if (rsp == null){
+            // String rsp = Agents.get(suppLink.trim(), null, 60, (File)pathSuppFile);
+            if (rsp == null) {
                 throw new DatabaseException("Unsupported content type !");
             }
 
-            if (rsp.toLowerCase().contains("application/zip") || rsp.toLowerCase().contains("application/x-zip-compressed") || rsp.toLowerCase().contains("binary/octet-stream")){
+            if (rsp.toLowerCase().contains("application/zip")
+                    || rsp.toLowerCase().contains("application/x-zip-compressed")
+                    || rsp.toLowerCase().contains("binary/octet-stream")) {
                 ext = "zip";
             }
 
-            if (!pathSuppFile.exists()){
+            if (!pathSuppFile.exists()) {
                 throw new DatabaseException("Suppression file not found !");
             }
 
             if ("zip".equals(ext) || Files.read(pathSuppFile)) {
                 File secondRndFile = new File(firstRndFile.getAbsolutePath() + "/" + Strings.rndomSalt(15, false));
                 secondRndFile.mkdir();
-                Terminal.executeCommand("unzip -d " + secondRndFile.getAbsolutePath() + " " + pathSuppFile.getAbsolutePath());
+                Terminal.executeCommand(
+                        "unzip -d " + secondRndFile.getAbsolutePath() + " " + pathSuppFile.getAbsolutePath());
                 List<File> listFile = Files.listAllFiles(secondRndFile, true);
                 for (File file3 : listFile) {
-                    if (file3.getName().contains("(") || file3.getName().contains(")")){
+                    if (file3.getName().contains("(") || file3.getName().contains(")")) {
                         Terminal.executeCommand("rename '(' _ " + secondRndFile.getAbsolutePath() + "/*.txt");
                         Terminal.executeCommand("rename ')' _ " + secondRndFile.getAbsolutePath() + "/*.txt");
                         Terminal.executeCommand("rename '(' _ " + secondRndFile.getAbsolutePath() + "/*.txt");
@@ -242,7 +255,8 @@ public class Affiliate implements Controller {
                 }
                 List<File> listFile2 = Files.listAllFiles(secondRndFile, true);
                 for (File file3 : listFile2) {
-                    if (file3.getName().toLowerCase().contains(".xlsx") || file3.getName().toLowerCase().contains(".xls")){
+                    if (file3.getName().toLowerCase().contains(".xlsx")
+                            || file3.getName().toLowerCase().contains(".xls")) {
                         Workbook book = new Workbook(secondRndFile.getAbsolutePath() + "/" + file3.getName());
                         book.save(secondRndFile.getAbsolutePath() + "/" + file3.getName() + ".csv", SaveFormat.AUTO);
                         Terminal.executeCommand("unlink " + secondRndFile.getAbsolutePath() + "/" + file3.getName());
@@ -250,12 +264,13 @@ public class Affiliate implements Controller {
                 }
                 List<File> listFile3 = Files.listAllFiles(secondRndFile, true);
                 for (File file3 : listFile3) {
-                    if (!file3.getName().toLowerCase().contains("domain") && file3.length() > 0L){
+                    if (!file3.getName().toLowerCase().contains("domain") && file3.length() > 0L) {
                         pathSuppFile = file3;
                     }
                 }
 
-                File unikSupp = new File(secondRndFile.getAbsolutePath() + "/" + Strings.rndomSalt(15, false) + "_U.txt");
+                File unikSupp = new File(
+                        secondRndFile.getAbsolutePath() + "/" + Strings.rndomSalt(15, false) + "_U.txt");
                 Terminal.executeCommand("sort " + pathSuppFile + " | uniq > " + unikSupp);
                 pathSuppFile = unikSupp;
             }
@@ -267,21 +282,23 @@ public class Affiliate implements Controller {
             if (lines == null || lines.isEmpty()) {
                 throw new DatabaseException("Suppression file is empty !");
             }
-            //Collections.sort(lines);
+            // Collections.sort(lines);
 
             boolean isMD5 = false;
             for (int i = 0; i < 5; i++) {
-                isMD5 = (((String)lines.get(i)).length() == 32 && !((String)lines.get(i)).contains("@")) ? true : false;
-                if (isMD5){
+                isMD5 = (((String) lines.get(i)).length() == 32 && !((String) lines.get(i)).contains("@")) ? true
+                        : false;
+                if (isMD5) {
                     break;
                 }
             }
 
             if (!isMD5) {
-                boolean hasCsv = (rsp.toLowerCase().contains("application/csv") || rsp.toLowerCase().contains("text/csv")) ? true : false;
+                boolean hasCsv = (rsp.toLowerCase().contains("application/csv")
+                        || rsp.toLowerCase().contains("text/csv")) ? true : false;
                 for (int b = 0; b < lines.size(); b++) {
-                    String str = ((String)lines.get(b)).trim().toLowerCase();
-                    if (hasCsv){
+                    String str = ((String) lines.get(b)).trim().toLowerCase();
+                    if (hasCsv) {
                         if (str.contains(",")) {
                             String[] arrayOfString = str.split(",");
                             if (arrayOfString != null && arrayOfString.length > 0)
@@ -292,7 +309,11 @@ public class Affiliate implements Controller {
                                 str = arrayOfString[0].trim();
                         }
                     }
-                    str = StringUtils.replace(StringUtils.replace(StringUtils.replace(StringUtils.replace(StringUtils.replace(str.replaceAll("\n", "").replaceAll("\r", ""), "\"", ""), "'", ""), ";", ""), ",", ""), "#", "");
+                    str = StringUtils
+                            .replace(StringUtils.replace(StringUtils.replace(
+                                    StringUtils.replace(StringUtils
+                                            .replace(str.replaceAll("\n", "").replaceAll("\r", ""), "\"", ""), "'", ""),
+                                    ";", ""), ",", ""), "#", "");
                     if (str == null || "".equals(str)) {
                         lines.set(b, "");
                     } else {
@@ -301,9 +322,9 @@ public class Affiliate implements Controller {
                 }
             }
 
-            //lines.removeAll(Collections.singleton(null));
-            //lines.removeAll(Collections.singleton(""));
-            //SuppEmailList = Collections.unmodifiableSet(new HashSet(lines));
+            // lines.removeAll(Collections.singleton(null));
+            // lines.removeAll(Collections.singleton(""));
+            // SuppEmailList = Collections.unmodifiableSet(new HashSet(lines));
             SuppEmailList = new HashSet(lines);
 
             if (SuppEmailList.isEmpty()) {
@@ -311,23 +332,25 @@ public class Affiliate implements Controller {
             } else {
                 int size = dataList.size();
                 ExecutorService execService = Executors.newFixedThreadPool((size > 100) ? 100 : size);
-                for (DataList dtLst : dataList){
-                    execService.submit((Runnable)new SuppressionUpdater(offer, size, supp, dtLst, firstRndFile.getAbsolutePath()));
+                for (DataList dtLst : dataList) {
+                    execService.submit((Runnable) new SuppressionUpdater(offer, size, supp, dtLst,
+                            firstRndFile.getAbsolutePath()));
                 }
                 execService.shutdown();
-                if (!execService.awaitTermination(1L, TimeUnit.DAYS)){
+                if (!execService.awaitTermination(1L, TimeUnit.DAYS)) {
                     execService.shutdownNow();
                 }
             }
 
-            offer.lastSuppressionUpdatedDate = new Timestamp(Calendar.getInstance(TimeZone.getTimeZone("GMT")).getTimeInMillis());
+            offer.lastSuppressionUpdatedDate = new Timestamp(
+                    Calendar.getInstance(TimeZone.getTimeZone("GMT")).getTimeInMillis());
             offer.update();
 
         } catch (Exception e) {
             IS_ERROR_OCCURED = true;
             Loggers.error(e);
         }
-        if (supp != null){
+        if (supp != null) {
             UpdateData.finishUpdate(supp, IS_ERROR_OCCURED);
         }
         return new Response("Process completed successfully !", 200);
@@ -335,12 +358,15 @@ public class Affiliate implements Controller {
 
     public Response stopSupressionProcesses() throws Exception {
         Application app = Application.checkAndgetInstance();
-        if (app == null){
+        if (app == null) {
             throw new DatabaseException("Application not found !");
         }
 
-        JSONArray processesIds = (app.getParameters().has("processes-ids") && app.getParameters().get("processes-ids") instanceof JSONArray) ? app.getParameters().getJSONArray("processes-ids") : new JSONArray();
-        if (processesIds.length() == 0){
+        JSONArray processesIds = (app.getParameters().has("processes-ids")
+                && app.getParameters().get("processes-ids") instanceof JSONArray)
+                        ? app.getParameters().getJSONArray("processes-ids")
+                        : new JSONArray();
+        if (processesIds.length() == 0) {
             throw new DatabaseException("No processes found !");
         }
 
@@ -348,7 +374,7 @@ public class Affiliate implements Controller {
         for (int b = 0; b < processesIds.length(); b++) {
             supp = new Suppression(Integer.valueOf(processesIds.getInt(b)));
             if (!supp.getEmpty()) {
-                if (!"In Progress".equalsIgnoreCase(supp.status)){
+                if (!"In Progress".equalsIgnoreCase(supp.status)) {
                     throw new DatabaseException("This process with id : " + supp.id + " is not in progress !");
                 }
                 Terminal.killProcess(supp.processId);
@@ -362,24 +388,28 @@ public class Affiliate implements Controller {
 
     public Response getClicks() throws Exception {
         Application app = Application.checkAndgetInstance();
-        if (app == null){
+        if (app == null) {
             throw new DatabaseException("Application not found !");
         }
 
-        JSONArray affiliateNetworksIds = (app.getParameters().has("affiliate-networks-ids") && app.getParameters().get("affiliate-networks-ids") instanceof JSONArray) ? app.getParameters().getJSONArray("affiliate-networks-ids") : new JSONArray();
+        JSONArray affiliateNetworksIds = (app.getParameters().has("affiliate-networks-ids")
+                && app.getParameters().get("affiliate-networks-ids") instanceof JSONArray)
+                        ? app.getParameters().getJSONArray("affiliate-networks-ids")
+                        : new JSONArray();
         List<AffiliateNetwork> affiliate = new ArrayList<>();
 
         if (affiliateNetworksIds.length() == 0) {
-            affiliate = (List)AffiliateNetwork.all(AffiliateNetwork.class, "status = ?", new Object[] { "Activated" });
+            affiliate = (List) AffiliateNetwork.all(AffiliateNetwork.class, "status = ?", new Object[] { "Activated" });
         } else {
             String ids = "";
-            for (int b = 0; b < affiliateNetworksIds.length(); b++){
+            for (int b = 0; b < affiliateNetworksIds.length(); b++) {
                 ids = ids + affiliateNetworksIds.getInt(b) + ",";
             }
             ids = ids + (ids.endsWith(",") ? ids.substring(0, ids.length() - 1) : ids);
-            affiliate = (List)AffiliateNetwork.all(AffiliateNetwork.class, "status = ? AND id IN (" + ids + ")", new Object[] { "Activated" });
+            affiliate = (List) AffiliateNetwork.all(AffiliateNetwork.class, "status = ? AND id IN (" + ids + ")",
+                    new Object[] { "Activated" });
         }
-        if (affiliate == null){
+        if (affiliate == null) {
             throw new DatabaseException("Affiliate networks not found !");
         }
 
@@ -389,35 +419,45 @@ public class Affiliate implements Controller {
         if (app.getParameters().has("period")) {
             Calendar calendar;
             switch (app.getParameters().getString("period")) {
-                case "today":{
-                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00")).format(new Date(System.currentTimeMillis()));
-                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59")).format(new Date(System.currentTimeMillis()));
+                case "today": {
+                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00"))
+                            .format(new Date(System.currentTimeMillis()));
+                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59"))
+                            .format(new Date(System.currentTimeMillis()));
                     break;
                 }
-                case "yesterday":{
+                case "yesterday": {
                     calendar = Calendar.getInstance();
                     calendar.add(5, -1);
-                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00")).format(new Date(calendar.getTimeInMillis()));
-                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59")).format(new Date(calendar.getTimeInMillis()));
+                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00"))
+                            .format(new Date(calendar.getTimeInMillis()));
+                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59"))
+                            .format(new Date(calendar.getTimeInMillis()));
                     break;
                 }
-                case "this-week":{
+                case "this-week": {
                     calendar = Calendar.getInstance();
                     calendar.add(5, -7);
-                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00")).format(new Date(calendar.getTimeInMillis()));
-                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59")).format(new Date(System.currentTimeMillis()));
+                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00"))
+                            .format(new Date(calendar.getTimeInMillis()));
+                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59"))
+                            .format(new Date(System.currentTimeMillis()));
                     break;
                 }
-                case "this-month":{
-                    startDate = (new SimpleDateFormat("yyyy-MM-01 00:00:00")).format(new Date(System.currentTimeMillis()));
-                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59")).format(new Date(System.currentTimeMillis()));
+                case "this-month": {
+                    startDate = (new SimpleDateFormat("yyyy-MM-01 00:00:00"))
+                            .format(new Date(System.currentTimeMillis()));
+                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59"))
+                            .format(new Date(System.currentTimeMillis()));
                     break;
                 }
-                case "last-month":{
+                case "last-month": {
                     calendar = Calendar.getInstance();
                     calendar.add(2, -1);
-                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00")).format(new Date(calendar.getTimeInMillis()));
-                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59")).format(new Date(System.currentTimeMillis()));
+                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00"))
+                            .format(new Date(calendar.getTimeInMillis()));
+                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59"))
+                            .format(new Date(System.currentTimeMillis()));
                     break;
                 }
             }
@@ -426,23 +466,22 @@ public class Affiliate implements Controller {
             endDate = app.getParameters().getString("end-date");
         }
 
-        if ("".equals(startDate) || "".equals(endDate)){
+        if ("".equals(startDate) || "".equals(endDate)) {
             throw new DatabaseException("Invalid date range !");
         }
 
-        LinkedHashMap<Integer,String> mailers = new LinkedHashMap<>();
-        ((List<User>)User.all(User.class)).forEach(
-                usr -> mailers.put(usr.productionId, usr.firstName + " " + usr.lastName)
-        );
+        LinkedHashMap<Integer, String> mailers = new LinkedHashMap<>();
+        ((List<User>) User.all(User.class)).forEach(
+                usr -> mailers.put(usr.productionId, usr.firstName + " " + usr.lastName));
 
         int nbThread = (affiliate.size() > 100) ? 100 : affiliate.size();
         ExecutorService execService = Executors.newFixedThreadPool(nbThread);
 
-        for (AffiliateNetwork spnsor : affiliate){
-            execService.submit((Runnable)new ClicksCollector(spnsor, startDate, endDate, mailers));
+        for (AffiliateNetwork spnsor : affiliate) {
+            execService.submit((Runnable) new ClicksCollector(spnsor, startDate, endDate, mailers));
         }
         execService.shutdown();
-        if (!execService.awaitTermination(1L, TimeUnit.DAYS)){
+        if (!execService.awaitTermination(1L, TimeUnit.DAYS)) {
             execService.shutdownNow();
         }
         return new Response("Clicks saved successfully !", 200);
@@ -451,25 +490,29 @@ public class Affiliate implements Controller {
     public Response getConversions() throws Exception {
 
         Application app = Application.checkAndgetInstance();
-        if (app == null){
+        if (app == null) {
             throw new DatabaseException("Application not found !");
         }
 
         List<AffiliateNetwork> affiliate = new ArrayList<>();
 
-        JSONArray affNetworkIds = (app.getParameters().has("affiliate-networks-ids") && app.getParameters().get("affiliate-networks-ids") instanceof JSONArray) ? app.getParameters().getJSONArray("affiliate-networks-ids") : new JSONArray();
+        JSONArray affNetworkIds = (app.getParameters().has("affiliate-networks-ids")
+                && app.getParameters().get("affiliate-networks-ids") instanceof JSONArray)
+                        ? app.getParameters().getJSONArray("affiliate-networks-ids")
+                        : new JSONArray();
         if (affNetworkIds.length() == 0) {
-            affiliate = (List)AffiliateNetwork.all(AffiliateNetwork.class, "status = ?", new Object[] { "Activated" });
+            affiliate = (List) AffiliateNetwork.all(AffiliateNetwork.class, "status = ?", new Object[] { "Activated" });
         } else {
             String ids = "";
-            for (int i = 0; i < affNetworkIds.length(); i++){
+            for (int i = 0; i < affNetworkIds.length(); i++) {
                 ids = ids + affNetworkIds.getInt(i) + ",";
             }
             ids = ids + (ids.endsWith(",") ? ids.substring(0, ids.length() - 1) : ids);
-            affiliate = (List)AffiliateNetwork.all(AffiliateNetwork.class, "status = ? AND id IN (" + ids + ")", new Object[] { "Activated" });
+            affiliate = (List) AffiliateNetwork.all(AffiliateNetwork.class, "status = ? AND id IN (" + ids + ")",
+                    new Object[] { "Activated" });
         }
 
-        if (affiliate == null){
+        if (affiliate == null) {
             throw new DatabaseException("Affiliate networks not found !");
         }
 
@@ -478,35 +521,45 @@ public class Affiliate implements Controller {
         if (app.getParameters().has("period")) {
             Calendar calendar;
             switch (app.getParameters().getString("period")) {
-                case "today":{
-                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00")).format(new Date(System.currentTimeMillis()));
-                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59")).format(new Date(System.currentTimeMillis()));
+                case "today": {
+                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00"))
+                            .format(new Date(System.currentTimeMillis()));
+                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59"))
+                            .format(new Date(System.currentTimeMillis()));
                     break;
                 }
-                case "yesterday":{
+                case "yesterday": {
                     calendar = Calendar.getInstance();
                     calendar.add(5, -1);
-                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00")).format(new Date(calendar.getTimeInMillis()));
-                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59")).format(new Date(calendar.getTimeInMillis()));
+                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00"))
+                            .format(new Date(calendar.getTimeInMillis()));
+                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59"))
+                            .format(new Date(calendar.getTimeInMillis()));
                     break;
                 }
-                case "this-week":{
+                case "this-week": {
                     calendar = Calendar.getInstance();
                     calendar.add(5, -7);
-                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00")).format(new Date(calendar.getTimeInMillis()));
-                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59")).format(new Date(System.currentTimeMillis()));
+                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00"))
+                            .format(new Date(calendar.getTimeInMillis()));
+                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59"))
+                            .format(new Date(System.currentTimeMillis()));
                     break;
                 }
-                case "this-month":{
-                    startDate = (new SimpleDateFormat("yyyy-MM-01 00:00:00")).format(new Date(System.currentTimeMillis()));
-                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59")).format(new Date(System.currentTimeMillis()));
+                case "this-month": {
+                    startDate = (new SimpleDateFormat("yyyy-MM-01 00:00:00"))
+                            .format(new Date(System.currentTimeMillis()));
+                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59"))
+                            .format(new Date(System.currentTimeMillis()));
                     break;
                 }
-                case "last-month":{
+                case "last-month": {
                     calendar = Calendar.getInstance();
                     calendar.add(2, -1);
-                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00")).format(new Date(calendar.getTimeInMillis()));
-                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59")).format(new Date(System.currentTimeMillis()));
+                    startDate = (new SimpleDateFormat("yyyy-MM-dd 00:00:00"))
+                            .format(new Date(calendar.getTimeInMillis()));
+                    endDate = (new SimpleDateFormat("yyyy-MM-dd 23:59:59"))
+                            .format(new Date(System.currentTimeMillis()));
                     break;
                 }
             }
@@ -515,26 +568,28 @@ public class Affiliate implements Controller {
             endDate = app.getParameters().getString("end-date");
         }
 
-        if ("".equals(startDate) || "".equals(endDate)){
+        if ("".equals(startDate) || "".equals(endDate)) {
             throw new DatabaseException("Invalid date range !");
         }
 
-        LinkedHashMap<Integer,String> mailers = new LinkedHashMap<>();
-        ((List<User>)User.all(User.class)).forEach(
-                entry -> mailers.put(entry.productionId, entry.firstName + " " + entry.lastName)
-        );
+        LinkedHashMap<Integer, String> mailers = new LinkedHashMap<>();
+        ((List<User>) User.all(User.class)).forEach(
+                entry -> mailers.put(entry.productionId, entry.firstName + " " + entry.lastName));
 
         int nbThread = (affiliate.size() > 100) ? 100 : affiliate.size();
-        ExecutorService execService = Executors.newFixedThreadPool(nbThread);
+        if (nbThread > 0) {
+            ExecutorService execService = Executors.newFixedThreadPool(nbThread);
 
-        for (AffiliateNetwork spnsor : affiliate){
-            execService.submit((Runnable)new ConversionsCollector(spnsor, startDate, endDate, mailers));
-        }
-        execService.shutdown();
+            for (AffiliateNetwork spnsor : affiliate) {
+                execService.submit((Runnable) new ConversionsCollector(spnsor, startDate, endDate, mailers));
+            }
+            execService.shutdown();
 
-        if (!execService.awaitTermination(1L, TimeUnit.DAYS)){
-            execService.shutdownNow();
+            if (!execService.awaitTermination(1L, TimeUnit.DAYS)) {
+                execService.shutdownNow();
+            }
         }
+
         return new Response("Conversions saved successfully !", 200);
     }
 
@@ -556,7 +611,7 @@ public class Affiliate implements Controller {
                 return getOffers();
             }
             case "c3RhcnRTdXBwcmVzc2lvbg==": {
-                return startSuppression() ;
+                return startSuppression();
             }
             case "c3RvcFN1cHJlc3Npb25Qcm9jZXNzZXM=": {
                 return stopSupressionProcesses();
